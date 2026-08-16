@@ -1,4 +1,5 @@
 import os
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -10,13 +11,32 @@ from telegram.ext import (
 )
 
 TOKEN = os.environ.get("SUPPORT_BOT_TOKEN")
+ADMIN_TELEGRAM_ID = os.environ.get("ADMIN_TELEGRAM_ID")
+
+PORT = int(os.environ.get("PORT", "10000"))
+WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("💳 Problema com pagamento", callback_data="pagamento")],
-        [InlineKeyboardButton("🔐 Problema com acesso VIP", callback_data="acesso")],
-        [InlineKeyboardButton("💬 Outras dúvidas", callback_data="outros")],
+        [
+            InlineKeyboardButton(
+                "💳 Problema com pagamento",
+                callback_data="pagamento",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔐 Problema com acesso VIP",
+                callback_data="acesso",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "💬 Outras dúvidas",
+                callback_data="outros",
+            )
+        ],
     ]
 
     await update.message.reply_text(
@@ -33,6 +53,7 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "pagamento":
         context.user_data["assunto"] = "💳 PAGAMENTO"
+
         texto = (
             "💳 Soporte de pago\n\n"
             "Cuéntame qué problema tuviste con el pago.\n\n"
@@ -41,6 +62,7 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "acesso":
         context.user_data["assunto"] = "🔐 ACESSO VIP"
+
         texto = (
             "🔐 Soporte de acceso VIP\n\n"
             "Cuéntame qué problema tuviste para entrar al VIP.\n\n"
@@ -49,6 +71,7 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         context.user_data["assunto"] = "💬 OUTRA DÚVIDA"
+
         texto = (
             "💬 Soporte general\n\n"
             "Escribe tu duda o mensaje aquí 👇"
@@ -61,52 +84,85 @@ async def receber_mensagem(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    if not update.message:
+    if not update.message or not update.message.text:
         return
 
-    assunto = context.user_data.get("assunto", "💬 SUPORTE")
+    assunto = context.user_data.get(
+        "assunto",
+        "💬 SUPORTE",
+    )
 
     user = update.effective_user
 
     nome = user.full_name if user else "Usuário"
-    username = f"@{user.username}" if user and user.username else "Sem username"
+
+    if user and user.username:
+        username = f"@{user.username}"
+    else:
+        username = "Sem username"
+
     user_id = user.id if user else "Desconhecido"
 
-    texto = (
+    texto_admin = (
         f"{assunto}\n\n"
         f"👤 Cliente: {nome}\n"
         f"🔗 Username: {username}\n"
-        f"🆔 ID: {user_id}\n\n"
-        f"📝 Mensagem:\n{update.message.text}"
+        f"🆔 Telegram ID: {user_id}\n\n"
+        f"📝 Mensagem:\n"
+        f"{update.message.text}"
     )
 
-    admin_id = os.environ.get("ADMIN_TELEGRAM_ID")
-
-    if not admin_id:
-        await update.message.reply_text(
-            "⚠️ El soporte todavía está siendo configurado."
+    try:
+        await context.bot.send_message(
+            chat_id=int(ADMIN_TELEGRAM_ID),
+            text=texto_admin,
         )
-        return
 
-    await context.bot.send_message(
-        chat_id=int(admin_id),
-        text=texto,
-    )
+        await update.message.reply_text(
+            "✅ Mensaje enviado al soporte.\n\n"
+            "Te responderemos lo antes posible ❤️"
+        )
 
-    await update.message.reply_text(
-        "✅ Mensaje enviado al soporte.\n\n"
-        "Te responderemos lo antes posible ❤️"
-    )
+    except Exception as erro:
+        print(f"Erro ao encaminhar mensagem: {erro}")
+
+        await update.message.reply_text(
+            "⚠️ No fue posible enviar tu mensaje ahora.\n\n"
+            "Inténtalo nuevamente en unos minutos."
+        )
 
 
 def main():
     if not TOKEN:
-        raise RuntimeError("SUPPORT_BOT_TOKEN não configurado")
+        raise RuntimeError(
+            "SUPPORT_BOT_TOKEN não configurado"
+        )
+
+    if not ADMIN_TELEGRAM_ID:
+        raise RuntimeError(
+            "ADMIN_TELEGRAM_ID não configurado"
+        )
+
+    if not WEBHOOK_URL:
+        raise RuntimeError(
+            "RENDER_EXTERNAL_URL não disponível"
+        )
 
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(botoes))
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start,
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            botoes,
+        )
+    )
+
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -114,7 +170,13 @@ def main():
         )
     )
 
-    app.run_polling()
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="support",
+        webhook_url=f"{WEBHOOK_URL}/support",
+        drop_pending_updates=True,
+    )
 
 
 if __name__ == "__main__":
