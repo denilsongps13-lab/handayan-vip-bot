@@ -1,16 +1,27 @@
 import os
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LabeledPrice,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
     ContextTypes,
+    PreCheckoutQueryHandler,
+    MessageHandler,
+    filters,
 )
 
 TOKEN = os.environ.get("BOT_TOKEN")
 PORT = int(os.environ.get("PORT", "10000"))
 WEBHOOK_URL = "https://handayan-vip-bot.onrender.com"
+
+VIP_PRICE_STARS = 100
+VIP_PAYLOAD = "handayan_vip_100"
 
 
 def menu_principal():
@@ -36,7 +47,7 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "vip":
         keyboard = [
-            [InlineKeyboardButton("💳 Assinar VIP", callback_data="assinar")],
+            [InlineKeyboardButton("⭐ Assinar por 100 Stars", callback_data="assinar")],
             [InlineKeyboardButton("⬅️ Voltar", callback_data="voltar")],
         ]
 
@@ -45,24 +56,25 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔥 Conteúdo exclusivo\n"
             "❤️ Novidades especiais\n"
             "🔐 Acesso reservado para membros\n\n"
-            "Escolha uma opção abaixo 👇",
+            "Preço: ⭐ 100 Stars\n\n"
+            "Toque abaixo para assinar 👇",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
     elif query.data == "assinar":
-        await query.edit_message_text(
-            "💳 ASSINATURA VIP 💎\n\n"
-            "Aqui vamos colocar o plano e o pagamento.\n\n"
-            "Em breve você poderá assinar diretamente pelo bot. ❤️",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Voltar", callback_data="vip")]
-            ]),
+        await context.bot.send_invoice(
+            chat_id=query.message.chat_id,
+            title="Handayan VIP",
+            description="Acesso ao conteúdo VIP da Handayan.",
+            payload=VIP_PAYLOAD,
+            currency="XTR",
+            prices=[LabeledPrice("Handayan VIP", VIP_PRICE_STARS)],
         )
 
     elif query.data == "conteudo":
         await query.edit_message_text(
             "🔥 Conteúdo da Handayan\n\n"
-            "Novidades chegando em breve ❤️",
+            "O conteúdo VIP será liberado automaticamente após o pagamento. ❤️",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("⬅️ Voltar", callback_data="voltar")]
             ]),
@@ -86,6 +98,49 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+
+    if query.invoice_payload != VIP_PAYLOAD:
+        await query.answer(
+            ok=False,
+            error_message="Não foi possível validar este pedido."
+        )
+        return
+
+    await query.answer(ok=True)
+
+
+async def pagamento_confirmado(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    pagamento = update.message.successful_payment
+
+    if (
+        pagamento.currency == "XTR"
+        and pagamento.invoice_payload == VIP_PAYLOAD
+        and pagamento.total_amount == VIP_PRICE_STARS
+    ):
+        await update.message.reply_text(
+            "✅ PAGAMENTO CONFIRMADO! 💎\n\n"
+            "Bem-vindo ao Handayan VIP ❤️🔥\n\n"
+            "Seu acesso VIP foi liberado.\n\n"
+            "Em breve, todo o conteúdo exclusivo aparecerá por aqui."
+        )
+
+
+async def paysupport(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    await update.message.reply_text(
+        "💳 Suporte de pagamentos Handayan VIP\n\n"
+        "Se você teve algum problema com uma compra, envie aqui uma mensagem "
+        "explicando o que aconteceu e informe a data aproximada do pagamento."
+    )
+
+
 def main():
     if not TOKEN:
         raise RuntimeError("BOT_TOKEN não configurado")
@@ -93,7 +148,16 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("paysupport", paysupport))
     app.add_handler(CallbackQueryHandler(botoes))
+    app.add_handler(PreCheckoutQueryHandler(precheckout))
+
+    app.add_handler(
+        MessageHandler(
+            filters.SUCCESSFUL_PAYMENT,
+            pagamento_confirmado
+        )
+    )
 
     app.run_webhook(
         listen="0.0.0.0",
