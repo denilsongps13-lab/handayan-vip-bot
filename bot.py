@@ -198,40 +198,6 @@ async def pagamento_confirmado(
         )
 
 
-async def testevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        convite = await context.bot.create_chat_invite_link(
-            chat_id=VIP_CHANNEL_ID,
-            member_limit=1,
-            name=f"TESTE-{update.effective_user.id}",
-        )
-
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        "💎 TESTAR ENTRADA NO VIP",
-                        url=convite.invite_link,
-                    )
-                ]
-            ]
-        )
-
-        await update.message.reply_text(
-            "✅ Teste VIP funcionando!\n\n"
-            "O bot conseguiu criar um convite para o canal.\n\n"
-            "Toque abaixo para testar 👇",
-            reply_markup=keyboard,
-        )
-
-    except Exception as erro:
-        print(f"Erro no teste VIP: {erro}")
-
-        await update.message.reply_text(
-            f"❌ Erro ao criar convite VIP:\n\n{erro}"
-        )
-
-
 async def paysupport(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💳 Suporte de pagamentos Handayan VIP\n\n"
@@ -250,7 +216,6 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("testevip", testevip))
     app.add_handler(CommandHandler("paysupport", paysupport))
     app.add_handler(CallbackQueryHandler(botoes))
     app.add_handler(PreCheckoutQueryHandler(precheckout))
