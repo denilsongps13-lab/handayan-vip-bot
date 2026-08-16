@@ -20,7 +20,7 @@ from telegram.ext import (
 TOKEN = os.environ.get("BOT_TOKEN")
 PORT = int(os.environ.get("PORT", "10000"))
 WEBHOOK_URL = "https://handayan-vip-bot.onrender.com"
-VIP_CHANNEL_ID = int(os.environ.get("VIP_CHANNEL_ID"))
+VIP_CHANNEL_ID = int(os.environ.get("VIP_CHANNEL_ID", "0"))
 
 VIP_PRICE_STARS = 100
 VIP_PAYLOAD = "handayan_vip_100"
@@ -49,14 +49,18 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "vip":
         keyboard = [
-            [InlineKeyboardButton(
-                "⭐ Assinar por 100 Stars",
-                callback_data="assinar"
-            )],
-            [InlineKeyboardButton(
-                "⬅️ Voltar",
-                callback_data="voltar"
-            )],
+            [
+                InlineKeyboardButton(
+                    "⭐ Assinar por 100 Stars",
+                    callback_data="assinar",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "⬅️ Voltar",
+                    callback_data="voltar",
+                )
+            ],
         ]
 
         await query.edit_message_text(
@@ -79,7 +83,7 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             prices=[
                 LabeledPrice(
                     "Handayan VIP",
-                    VIP_PRICE_STARS
+                    VIP_PRICE_STARS,
                 )
             ],
         )
@@ -88,28 +92,32 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "🔥 Conteúdo da Handayan\n\n"
             "O conteúdo exclusivo fica no canal VIP. ❤️",
-            reply_markup=InlineKeyboardMarkup([
+            reply_markup=InlineKeyboardMarkup(
                 [
-                    InlineKeyboardButton(
-                        "⬅️ Voltar",
-                        callback_data="voltar"
-                    )
+                    [
+                        InlineKeyboardButton(
+                            "⬅️ Voltar",
+                            callback_data="voltar",
+                        )
+                    ]
                 ]
-            ]),
+            ),
         )
 
     elif query.data == "falar":
         await query.edit_message_text(
             "💬 Quer falar comigo?\n\n"
             "Envie sua mensagem aqui ❤️",
-            reply_markup=InlineKeyboardMarkup([
+            reply_markup=InlineKeyboardMarkup(
                 [
-                    InlineKeyboardButton(
-                        "⬅️ Voltar",
-                        callback_data="voltar"
-                    )
+                    [
+                        InlineKeyboardButton(
+                            "⬅️ Voltar",
+                            callback_data="voltar",
+                        )
+                    ]
                 ]
-            ]),
+            ),
         )
 
     elif query.data == "voltar":
@@ -117,22 +125,17 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💋 Olá, amor! Eu sou a Handayan ❤️\n\n"
             "Bem-vindo ao meu espaço VIP 🔥\n\n"
             "Escolha uma opção abaixo 👇",
-            reply_markup=InlineKeyboardMarkup(
-                menu_principal()
-            ),
+            reply_markup=InlineKeyboardMarkup(menu_principal()),
         )
 
 
-async def precheckout(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
 
     if query.invoice_payload != VIP_PAYLOAD:
         await query.answer(
             ok=False,
-            error_message="Não foi possível validar este pedido."
+            error_message="Não foi possível validar este pedido.",
         )
         return
 
@@ -141,7 +144,7 @@ async def precheckout(
 
 async def pagamento_confirmado(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE
+    context: ContextTypes.DEFAULT_TYPE,
 ):
     pagamento = update.message.successful_payment
 
@@ -164,19 +167,21 @@ async def pagamento_confirmado(
             name=f"VIP-{update.effective_user.id}",
         )
 
-        keyboard = InlineKeyboardMarkup([
+        keyboard = InlineKeyboardMarkup(
             [
-                InlineKeyboardButton(
-                    "💎 ENTRAR NO CANAL VIP",
-                    url=convite.invite_link
-                )
+                [
+                    InlineKeyboardButton(
+                        "💎 ENTRAR NO CANAL VIP",
+                        url=convite.invite_link,
+                    )
+                ]
             ]
-        ])
+        )
 
         await update.message.reply_text(
             "✅ PAGAMENTO CONFIRMADO! 💎\n\n"
             "Bem-vindo ao Handayan VIP ❤️🔥\n\n"
-            "Seu link é individual e poderá ser usado "
+            "Seu link é individual e pode ser usado "
             "por apenas uma pessoa.\n\n"
             "Ele expira em 24 horas.\n\n"
             "Toque abaixo para entrar 👇",
@@ -193,15 +198,45 @@ async def pagamento_confirmado(
         )
 
 
-async def paysupport(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def testevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        convite = await context.bot.create_chat_invite_link(
+            chat_id=VIP_CHANNEL_ID,
+            member_limit=1,
+            name=f"TESTE-{update.effective_user.id}",
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "💎 TESTAR ENTRADA NO VIP",
+                        url=convite.invite_link,
+                    )
+                ]
+            ]
+        )
+
+        await update.message.reply_text(
+            "✅ Teste VIP funcionando!\n\n"
+            "O bot conseguiu criar um convite para o canal.\n\n"
+            "Toque abaixo para testar 👇",
+            reply_markup=keyboard,
+        )
+
+    except Exception as erro:
+        print(f"Erro no teste VIP: {erro}")
+
+        await update.message.reply_text(
+            f"❌ Erro ao criar convite VIP:\n\n{erro}"
+        )
+
+
+async def paysupport(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💳 Suporte de pagamentos Handayan VIP\n\n"
         "Se você teve algum problema com sua compra, "
-        "envie uma mensagem explicando o ocorrido e "
-        "informe a data aproximada do pagamento."
+        "envie uma mensagem explicando o ocorrido."
     )
 
 
@@ -209,21 +244,20 @@ def main():
     if not TOKEN:
         raise RuntimeError("BOT_TOKEN não configurado")
 
-    if not os.environ.get("VIP_CHANNEL_ID"):
+    if not VIP_CHANNEL_ID:
         raise RuntimeError("VIP_CHANNEL_ID não configurado")
 
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("testevip", testevip))
     app.add_handler(CommandHandler("paysupport", paysupport))
     app.add_handler(CallbackQueryHandler(botoes))
-    app.add_handler(
-        PreCheckoutQueryHandler(precheckout)
-    )
+    app.add_handler(PreCheckoutQueryHandler(precheckout))
     app.add_handler(
         MessageHandler(
             filters.SUCCESSFUL_PAYMENT,
-            pagamento_confirmado
+            pagamento_confirmado,
         )
     )
 
