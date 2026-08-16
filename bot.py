@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 
 from telegram import (
     Update,
@@ -19,6 +20,7 @@ from telegram.ext import (
 TOKEN = os.environ.get("BOT_TOKEN")
 PORT = int(os.environ.get("PORT", "10000"))
 WEBHOOK_URL = "https://handayan-vip-bot.onrender.com"
+VIP_CHANNEL_ID = int(os.environ.get("VIP_CHANNEL_ID"))
 
 VIP_PRICE_STARS = 100
 VIP_PAYLOAD = "handayan_vip_100"
@@ -47,15 +49,21 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "vip":
         keyboard = [
-            [InlineKeyboardButton("⭐ Assinar por 100 Stars", callback_data="assinar")],
-            [InlineKeyboardButton("⬅️ Voltar", callback_data="voltar")],
+            [InlineKeyboardButton(
+                "⭐ Assinar por 100 Stars",
+                callback_data="assinar"
+            )],
+            [InlineKeyboardButton(
+                "⬅️ Voltar",
+                callback_data="voltar"
+            )],
         ]
 
         await query.edit_message_text(
             "💎 HANDAYAN VIP 💎\n\n"
             "🔥 Conteúdo exclusivo\n"
             "❤️ Novidades especiais\n"
-            "🔐 Acesso reservado para membros\n\n"
+            "🔐 Acesso ao canal privado\n\n"
             "Preço: ⭐ 100 Stars\n\n"
             "Toque abaixo para assinar 👇",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -65,18 +73,28 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_invoice(
             chat_id=query.message.chat_id,
             title="Handayan VIP",
-            description="Acesso ao conteúdo VIP da Handayan.",
+            description="Acesso ao canal privado Handayan VIP.",
             payload=VIP_PAYLOAD,
             currency="XTR",
-            prices=[LabeledPrice("Handayan VIP", VIP_PRICE_STARS)],
+            prices=[
+                LabeledPrice(
+                    "Handayan VIP",
+                    VIP_PRICE_STARS
+                )
+            ],
         )
 
     elif query.data == "conteudo":
         await query.edit_message_text(
             "🔥 Conteúdo da Handayan\n\n"
-            "O conteúdo VIP será liberado automaticamente após o pagamento. ❤️",
+            "O conteúdo exclusivo fica no canal VIP. ❤️",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Voltar", callback_data="voltar")]
+                [
+                    InlineKeyboardButton(
+                        "⬅️ Voltar",
+                        callback_data="voltar"
+                    )
+                ]
             ]),
         )
 
@@ -85,7 +103,12 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💬 Quer falar comigo?\n\n"
             "Envie sua mensagem aqui ❤️",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Voltar", callback_data="voltar")]
+                [
+                    InlineKeyboardButton(
+                        "⬅️ Voltar",
+                        callback_data="voltar"
+                    )
+                ]
             ]),
         )
 
@@ -94,11 +117,16 @@ async def botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💋 Olá, amor! Eu sou a Handayan ❤️\n\n"
             "Bem-vindo ao meu espaço VIP 🔥\n\n"
             "Escolha uma opção abaixo 👇",
-            reply_markup=InlineKeyboardMarkup(menu_principal()),
+            reply_markup=InlineKeyboardMarkup(
+                menu_principal()
+            ),
         )
 
 
-async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def precheckout(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
     query = update.pre_checkout_query
 
     if query.invoice_payload != VIP_PAYLOAD:
@@ -117,16 +145,51 @@ async def pagamento_confirmado(
 ):
     pagamento = update.message.successful_payment
 
-    if (
+    pagamento_valido = (
         pagamento.currency == "XTR"
         and pagamento.invoice_payload == VIP_PAYLOAD
         and pagamento.total_amount == VIP_PRICE_STARS
-    ):
+    )
+
+    if not pagamento_valido:
+        return
+
+    try:
+        expira_em = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        convite = await context.bot.create_chat_invite_link(
+            chat_id=VIP_CHANNEL_ID,
+            expire_date=expira_em,
+            member_limit=1,
+            name=f"VIP-{update.effective_user.id}",
+        )
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "💎 ENTRAR NO CANAL VIP",
+                    url=convite.invite_link
+                )
+            ]
+        ])
+
         await update.message.reply_text(
             "✅ PAGAMENTO CONFIRMADO! 💎\n\n"
             "Bem-vindo ao Handayan VIP ❤️🔥\n\n"
-            "Seu acesso VIP foi liberado.\n\n"
-            "Em breve, todo o conteúdo exclusivo aparecerá por aqui."
+            "Seu link é individual e poderá ser usado "
+            "por apenas uma pessoa.\n\n"
+            "Ele expira em 24 horas.\n\n"
+            "Toque abaixo para entrar 👇",
+            reply_markup=keyboard,
+        )
+
+    except Exception as erro:
+        print(f"Erro ao criar convite VIP: {erro}")
+
+        await update.message.reply_text(
+            "✅ Seu pagamento foi confirmado.\n\n"
+            "⚠️ Não consegui gerar o link VIP automaticamente.\n"
+            "Use /paysupport para falar com o suporte."
         )
 
 
@@ -136,8 +199,9 @@ async def paysupport(
 ):
     await update.message.reply_text(
         "💳 Suporte de pagamentos Handayan VIP\n\n"
-        "Se você teve algum problema com uma compra, envie aqui uma mensagem "
-        "explicando o que aconteceu e informe a data aproximada do pagamento."
+        "Se você teve algum problema com sua compra, "
+        "envie uma mensagem explicando o ocorrido e "
+        "informe a data aproximada do pagamento."
     )
 
 
@@ -145,13 +209,17 @@ def main():
     if not TOKEN:
         raise RuntimeError("BOT_TOKEN não configurado")
 
+    if not os.environ.get("VIP_CHANNEL_ID"):
+        raise RuntimeError("VIP_CHANNEL_ID não configurado")
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("paysupport", paysupport))
     app.add_handler(CallbackQueryHandler(botoes))
-    app.add_handler(PreCheckoutQueryHandler(precheckout))
-
+    app.add_handler(
+        PreCheckoutQueryHandler(precheckout)
+    )
     app.add_handler(
         MessageHandler(
             filters.SUCCESSFUL_PAYMENT,
