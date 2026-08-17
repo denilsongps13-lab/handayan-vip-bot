@@ -172,4 +172,115 @@ async def pagamento_confirmado(
     pagamento = update.message.successful_payment
 
     pagamento_valido = (
-        pagamento.currency == "
+        pagamento.currency == "XTR"
+        and pagamento.invoice_payload == VIP_PAYLOAD
+        and pagamento.total_amount == VIP_PRICE_STARS
+    )
+
+    if not pagamento_valido:
+        return
+
+    try:
+        expira_em = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        convite = await context.bot.create_chat_invite_link(
+            chat_id=VIP_CHANNEL_ID,
+            expire_date=expira_em,
+            member_limit=1,
+            name=f"VIP-{update.effective_user.id}",
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "💎 ENTRAR NO CANAL VIP",
+                        url=convite.invite_link,
+                    )
+                ]
+            ]
+        )
+
+        await update.message.reply_text(
+            "✅ PAGAMENTO CONFIRMADO! 💎\n\n"
+            "Bienvenido a Handayan VIP ❤️🔥\n\n"
+            "Tu enlace es personal y puede ser utilizado "
+            "por una sola persona.\n\n"
+            "⏳ El enlace expira en 24 horas.\n\n"
+            "Toca abajo para entrar 👇",
+            reply_markup=keyboard,
+        )
+
+    except Exception as erro:
+        print(f"Erro ao criar convite VIP: {erro}")
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "💬 FALAR COM SUPORTE",
+                        url=SUPPORT_URL,
+                    )
+                ]
+            ]
+        )
+
+        await update.message.reply_text(
+            "✅ Tu pago fue confirmado.\n\n"
+            "⚠️ No fue posible generar tu enlace VIP automáticamente.\n\n"
+            "Habla con nuestro soporte 👇",
+            reply_markup=keyboard,
+        )
+
+
+async def paysupport(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "💬 ABRIR SUPORTE",
+                    url=SUPPORT_URL,
+                )
+            ]
+        ]
+    )
+
+    await update.message.reply_text(
+        "💳 SOPORTE DE PAGOS\n\n"
+        "¿Tuviste algún problema con tu compra o acceso VIP?\n\n"
+        "Toca abajo para hablar con nuestro soporte ❤️",
+        reply_markup=keyboard,
+    )
+
+
+def main():
+    if not TOKEN:
+        raise RuntimeError("BOT_TOKEN não configurado")
+
+    if not VIP_CHANNEL_ID:
+        raise RuntimeError("VIP_CHANNEL_ID não configurado")
+
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("paysupport", paysupport))
+    app.add_handler(CallbackQueryHandler(botoes))
+    app.add_handler(PreCheckoutQueryHandler(precheckout))
+    app.add_handler(
+        MessageHandler(
+            filters.SUCCESSFUL_PAYMENT,
+            pagamento_confirmado,
+        )
+    )
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="telegram",
+        webhook_url=f"{WEBHOOK_URL}/telegram",
+        drop_pending_updates=True,
+    )
+
+
+if __name__ == "__main__":
+    main()
